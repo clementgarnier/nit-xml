@@ -58,6 +58,7 @@ class XMLAttribute
         var name: String
         var value: String
 
+        # Avoid duplicate attributes
         redef fun ==(a) do return a isa XMLAttribute and a.name == self.name
 end
 
@@ -72,13 +73,15 @@ end
 class XMLElement
         super XMLNode
 
-        var children: Array[XMLNode]
-        var attributes: ArraySet[XMLAttribute]
+        var children: Array[XMLNode] = new Array[XMLNode]
+        var attributes: ArraySet[XMLAttribute] = new ArraySet[XMLAttribute]
 
         init(value: String) do 
+                assert value != ""
+
                 self.value = value
-                self.children = new Array[XMLNode]
-                self.attributes = new ArraySet[XMLAttribute]
+                self.children                
+                self.attributes
         end
 
         fun set_attributes(attributes: XMLAttribute...) do
@@ -128,6 +131,8 @@ abstract class XMLSpecialNode
         super XMLNode
 
         init(value: String) do
+                assert value != ""
+
                 self.value = value
         end
 end
@@ -137,6 +142,8 @@ class XMLComment
         super XMLSpecialNode
 
         init(value: String) do
+                assert value != ""
+
                 self.value = value
         end
 
@@ -150,6 +157,8 @@ class XMLText
         super XMLSpecialNode
 
         init(value: String) do
+                assert value != ""
+
                 self.value = value
         end
 
@@ -165,10 +174,14 @@ class XMLPI
         var target: String = ""
 
         init(value: String) do
+                assert value != ""
+
                 self.value = value
         end
         
         fun with_target(target: String): XMLPI do
+                assert target != ""
+
                 self.target = target
 
                 return self
@@ -184,6 +197,8 @@ class XMLCDATA
         super XMLSpecialNode
 
         init(value: String) do
+                assert value != ""
+
                 self.value = value
         end
 

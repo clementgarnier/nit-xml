@@ -80,8 +80,6 @@ class XMLElement
                 assert value != ""
 
                 self.value = value
-                self.children                
-                self.attributes
         end
 
         fun set_attributes(attributes: XMLAttribute...) do
@@ -178,11 +176,15 @@ class XMLPI
 
                 self.value = value
         end
-        
-        fun with_target(target: String): XMLPI do
+
+        fun set_target(target: String) do
                 assert target != ""
 
                 self.target = target
+        end
+        
+        fun with_target(target: String): XMLPI do
+                self.set_target(target)
 
                 return self
         end

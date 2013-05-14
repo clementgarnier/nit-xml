@@ -17,9 +17,10 @@ module xml
 
 # Any xml-formatable data
 interface XMLisable
-        fun to_xml: String do return to_indented_xml(0)
 
-        private fun to_indented_xml(depth: Int): String do return indent_xml(depth, self.format_xml(depth))
+        fun to_xml(indent: Bool): String do return format_xml(indent, 0)
+        
+        private fun format_xml(indent: Bool, depth: Int): String is abstract
 
         private fun indent_xml(depth: Int, xml_string: String): String do
                 assert depth >= 0
@@ -30,7 +31,6 @@ interface XMLisable
                 return xml
         end
 
-        private fun format_xml(depth: Int): String is abstract
 end
 
 # An XML document representation
@@ -46,20 +46,28 @@ class XMLDocument
                 self.version = version
         end
 
-        redef fun format_xml(depth: Int): String do
+        redef fun format_xml(indent: Bool, depth: Int): String do
                 var xml = "<?xml version=\"{self.version}\"?>"
-                if self.root != null then xml += "\n" + self.root.to_indented_xml(depth)
+                if self.root != null then xml += "\n" + self.root.to_xml(indent)
                 return xml
         end
+
+        fun save(file: String, indent: Bool) do
+		        var out = new OFStream.open(file)
+		        out.write(self.to_xml(indent))
+		        out.close
+	    end
 end
 
-# An XML attribute of which value is of type E
+# An XML attribute representation
 class XMLAttribute
         var name: String
         var value: String
 
         # Avoid duplicate attributes
         redef fun ==(a) do return a isa XMLAttribute and a.name == self.name
+
+        # TODO faire hashcode
 end
 
 # An abstract XML node representation
@@ -110,17 +118,31 @@ class XMLElement
                 return self
         end
 
-        redef fun format_xml(depth: Int): String do
-                var xml = "<{self.value}"
-                for a in attributes do xml += " {a.name}=\"{a.value}\""
-                if children.is_empty then return xml + "/>"
+        redef fun format_xml(indent: Bool, depth: Int): String do
+                if not indent then depth = 0
 
-                xml += ">"
+                var opening_tag = "<{self.value}"
+                for a in attributes do opening_tag += " {a.name}=\"{a.value}\""
+
+                # No children: close tag and return
+                if children.is_empty then
+                        opening_tag += "/>"
+                        return self.indent_xml(depth, opening_tag)
+                end
+
+                opening_tag += ">"
+
+                var xml = self.indent_xml(depth, opening_tag)
                 
-                for c in children do xml += "\n" + c.to_indented_xml(depth + 1)
+                # Write children
+                for c in children do xml += "\n" + c.format_xml(indent, depth + 1)
 
-                xml += "\n" + self.indent_xml(depth, "</{self.value}>")
+                xml += "\n"
 
+                # Close tag
+                var close_tag = "</{self.value}>"
+                xml += self.indent_xml(depth, close_tag)
+                
                 return xml
         end
 end
@@ -145,8 +167,10 @@ class XMLComment
                 self.value = value
         end
 
-        redef fun format_xml(depth: Int): String do
-                return "<!-- {self.value} -->"
+        redef fun format_xml(indent: Bool, depth: Int): String do
+                if not indent then depth = 0
+
+                return self.indent_xml(depth, "<!-- {self.value} -->")
         end
 end
 
@@ -160,8 +184,10 @@ class XMLText
                 self.value = value
         end
 
-        redef fun format_xml(depth: Int): String do
-                return self.value
+        redef fun format_xml(indent: Bool, depth: Int): String do
+                if not indent then depth = 0
+
+                return self.indent_xml(depth, self.value)
         end
 end
 
@@ -189,8 +215,10 @@ class XMLPI
                 return self
         end
 
-        redef fun format_xml(depth: Int): String do
-                return "<?{self.target} {self.value}?>"
+        redef fun format_xml(indent: Bool, depth: Int): String do
+                if not indent then depth = 0
+
+                return self.indent_xml(depth, "<?{self.target} {self.value}?>")
         end
 end
 
@@ -204,8 +232,10 @@ class XMLCDATA
                 self.value = value
         end
 
-        redef fun format_xml(depth: Int): String do
-                return "<![CDATA[{self.value}]]>"
+        redef fun format_xml(indent: Bool, depth: Int): String do
+                if not indent then depth = 0
+
+                return self.indent_xml(depth, "<![CDATA[{self.value}]]>")
         end
 end
 

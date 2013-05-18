@@ -99,7 +99,7 @@ class XMLDocument
                         var slices = query.split_with('/')
 
                         # //foo
-                        if slices[1].is_empty then
+                        if slices.length == 3 and slices[1].is_empty then
                                 results.add_all(self.root.search_all_by_name(slices[2], true))
                         else
                                 # /foo

@@ -21,3 +21,39 @@ document.root = (new XMLElement("mesh")).
 print document.to_xml(true)
 
 document.save("document.xml", false)
+
+printn("document.xpath_query(\"/\") => ")
+for n in document.xpath_query("/") do printn(n.to_xml(false))
+print("")
+
+printn("document.xpath_query(\"/mesh\") => ")
+for n in document.xpath_query("/mesh") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.xpath_query(\"/mesh/node\") => ")
+for n in document.xpath_query("/mesh/node") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.xpath_query(\"/mesh/node/innernode\") => ")
+for n in document.xpath_query("/mesh/node/innernode") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.xpath_query(\"//node\") => ")
+for n in document.xpath_query("//node") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.xpath_query(\"//innernode\") => ")
+for n in document.xpath_query("//innernode") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.root.xpath_query(\"node\") => ")
+for n in document.root.xpath_query("node") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.root.xpath_query(\"node/innernode\") => ")
+for n in document.root.xpath_query("node/innernode") do printn(n.to_xml(false))
+print("\n")
+
+printn("document.root.xpath_query(\"node\").xpath_query(\"innernode\") => ")
+for n in document.root.xpath_query("node").xpath_query("innernode") do printn(n.to_xml(false))
+print("\n")

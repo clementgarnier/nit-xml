@@ -100,7 +100,7 @@ class XMLDocument
 
                         # //foo
                         if slices.length == 3 and slices[1].is_empty then
-                                results.add_all(self.root.search_all_by_name(slices[2], true))
+                                results.add_all(self.root.search_all_by_pattern(slices[2], true))
                         else
                                 # /foo
                                 if slices.length == 2 and self.root.value == slices[1] and root != null then
@@ -112,7 +112,7 @@ class XMLDocument
                                         if slices[0] == self.root.value then
                                                 slices.remove_at(0)
 
-                                                results.add_all(self.root.nested_search_all_by_name(slices))
+                                                results.add_all(self.root.nested_search_all_by_pattern(slices))
                                         end
                                 end
                         end
@@ -121,9 +121,9 @@ class XMLDocument
                 return results
         end
 
-        # Look for all elements called "name" in the document, recursively or not
-        private fun search_all_by_name(name: String, recursive: Bool): Array[XMLNode] do
-                return self.root.search_all_by_name(name, recursive)
+        # Look for all elements matching this pattern (name, optionally index and parameters) in the document, recursively or not
+        private fun search_all_by_pattern(pattern: String, recursive: Bool): Array[XMLNode] do
+                return self.root.search_all_by_pattern(pattern, recursive)
         end
 
 end
@@ -174,6 +174,14 @@ class XMLElement
                 return self
         end
 
+        fun has_attribute_with_value(attribute: XMLAttribute): Bool do
+                for a in self.attributes do
+                        if a.name == attribute.name and a.value == attribute.value then return true
+                end
+
+                return false
+        end
+
         fun add_children(children: XMLNode...) do
                 self.children.add_all(children)
         end
@@ -221,14 +229,72 @@ class XMLElement
                 return xml
         end
 
-        # Look for all children elements called "name", recursively or not
-        private fun search_all_by_name(name: String, recursive: Bool): Array[XMLElement] do
+        # Look for all children elements matching this pattern (name, optionally index and parameters), recursively or not
+        private fun search_all_by_pattern(pattern: String, recursive: Bool): Array[XMLElement] do
                 var results = new Array[XMLElement]
-                
+                var index = 1
+
                 for c in children do
                         if c isa XMLElement then
-                                if c.value == name then results.add(c)
-                                if recursive and c.has_children then results.add_all(c.search_all_by_name(name, recursive))
+                                if c.value == pattern then
+                                        results.add(c)
+                                else 
+                                        var bracket_start = pattern.index_of('[')
+                                        var bracket_end = pattern.index_of(']')
+
+                                        if bracket_start >= 0 and bracket_start < bracket_end then
+                                                # (foo)?[0-9|(@attr=val)]
+
+                                                # Get the "foo" part (node name or empty)
+                                                var pattern_val = ""
+                                                for i in [0..bracket_start[ do pattern_val += pattern[i].to_s
+                                                
+                                                if pattern[bracket_start + 1] == '@' then
+                                                        # (foo)?[@attr=val]
+                                                        var equal_pos = pattern.index_of('=')
+                                                                
+                                                        if equal_pos > bracket_start and equal_pos < bracket_end then
+                                                                # Get the "attr" part
+                                                                var attribute_name = ""
+                                                                for i in [bracket_start + 2..equal_pos[ do attribute_name += pattern[i].to_s
+
+                                                                # Avoid opening and closing quotes in attribute value, if any
+                                                                if pattern[equal_pos + 1] == pattern[bracket_end - 1] and (pattern[equal_pos + 1] == '\'' or pattern[bracket_start + 1] == '"') then
+                                                                        equal_pos += 1
+                                                                        bracket_end -= 1
+                                                                end
+                                                                # Get the "val" part
+                                                                var attribute_val = ""
+                                                                for i in [equal_pos + 1..bracket_end[ do attribute_val += pattern[i].to_s
+
+                                                                var match = true
+
+                                                                # Check node name if "foo" isn't empty
+                                                                if not pattern_val.is_empty and c.value != pattern_val then
+                                                                        match = false
+                                                                else if not c.has_attribute_with_value(new XMLAttribute(attribute_name, attribute_val)) then 
+                                                                        match = false
+                                                                end
+
+                                                                if match then results.add(c)
+                                                        end
+                                                else
+                                                        var pattern_index = ""
+
+                                                        for i in [bracket_start + 1..bracket_end[ do pattern_index += pattern[i].to_s
+
+                                                        if pattern_index.is_numeric and not pattern_index.has('.') and not pattern_index.has(',') then
+                                                                # (foo)?[0-9+]
+                                                                if pattern_val.is_empty or pattern_val == c.value then
+                                                                        if index == pattern_index.to_i then results.add(c)
+                                                                        index += 1
+                                                                end
+                                                        end
+                                                end
+                                        end
+                                end
+                                
+                                if recursive and c.has_children then results.add_all(c.search_all_by_pattern(pattern, recursive))
                         end
                 end
 
@@ -236,15 +302,15 @@ class XMLElement
         end
        
         # Look for an ordered succession of children
-        private fun nested_search_all_by_name(names: Array[String]): Array[XMLElement] do
+        private fun nested_search_all_by_pattern(patterns: Array[String]): Array[XMLElement] do
                 var results = new Array[XMLElement]
                 
                 var parent_results: Array[XMLElement] = [self]
 
-                for depth in [0..names.length[ do
+                for depth in [0..patterns.length[ do
                         results.clear
                         
-                        for node in parent_results do results.add_all(node.search_all_by_name(names[depth], false))
+                        for node in parent_results do results.add_all(node.search_all_by_pattern(patterns[depth], false))
 
                         parent_results.clear
                         parent_results.add_all(results)
@@ -267,10 +333,10 @@ class XMLElement
 
                 # foo
                 if slices.length == 1 then
-                        results.add_all(self.search_all_by_name(slices[0], false))
+                        results.add_all(self.search_all_by_pattern(slices[0], false))
                 # foo(/bar)+
                 else if slices.length > 1 then
-                        results.add_all(self.nested_search_all_by_name(slices))
+                        results.add_all(self.nested_search_all_by_pattern(slices))
                 end
 
                 return results

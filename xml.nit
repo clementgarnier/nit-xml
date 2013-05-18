@@ -133,10 +133,35 @@ class XMLAttribute
         var name: String
         var value: String
 
+        init(name: String, value: String) do
+                if name.is_empty then
+                        print("Attribute name cannot be empty.")
+                        abort
+                end
+                if value.is_empty then
+                        print("Attribute value cannot be empty.")
+                        abort
+                end
+
+                for c in name do
+                        if not c.is_alphanumeric then
+                                print("Forbidden character in attribute name \"" + name + "\" – only alphanumeric characters are allowed.")
+                                abort
+                        end
+                end
+                for c in value do
+                        if c == '\'' or c == '"' then
+                                print("Forbidden character in attribute value \"" + value + "\" – cannot contain ' or \".")
+                                abort
+                        end
+                end
+
+                self.name = name
+                self.value = value
+        end
+
         # Avoid duplicate attributes
         redef fun ==(a) do return a isa XMLAttribute and a.name == self.name
-
-        # TODO faire hashcode
 end
 
 # An abstract XML node representation
@@ -151,15 +176,25 @@ class XMLElement
         super XMLNode
         super XPathable
 
-        var children: Array[XMLNode] = new Array[XMLNode]
-        var attributes: ArraySet[XMLAttribute] = new ArraySet[XMLAttribute]
+        init(value: String) do
+                if value.is_empty then
+                        print("Node value cannot be empty.")
+                        abort
+                end
 
-        init(value: String) do 
-                assert value != ""
+                for c in value do
+                        if not c.is_alphanumeric then
+                                print("Forbidden character in node value \"" + value + "\" – only alphanumeric characters are allowed.")
+                                abort
+                        end
+                end
 
                 self.value = value
         end
 
+        var children: Array[XMLNode] = new Array[XMLNode]
+        var attributes: ArraySet[XMLAttribute] = new ArraySet[XMLAttribute]
+        
         fun set_attributes(attributes: XMLAttribute...) do
                 for a in attributes do self.attributes.add(a)
         end
@@ -347,7 +382,17 @@ abstract class XMLSpecialNode
         super XMLNode
 
         init(value: String) do
-                assert value != ""
+                if value.is_empty then
+                        print("Node value cannot be empty.")
+                        abort
+                end
+
+                for c in value do
+                        if c == '<' or c == '>' then
+                                print("Forbidden character in node name – cannot contain < or >.")
+                                abort
+                        end
+                end
 
                 self.value = value
         end
@@ -356,12 +401,6 @@ end
 # An XML comment representation
 class XMLComment
         super XMLSpecialNode
-
-        init(value: String) do
-                assert value != ""
-
-                self.value = value
-        end
 
         redef fun format_xml(indent: Bool, depth: Int): String do
                 if not indent then depth = 0
@@ -373,12 +412,6 @@ end
 # An XML text representation
 class XMLText
         super XMLSpecialNode
-
-        init(value: String) do
-                assert value != ""
-
-                self.value = value
-        end
 
         redef fun format_xml(indent: Bool, depth: Int): String do
                 if not indent then depth = 0
@@ -392,12 +425,6 @@ class XMLPI
         super XMLSpecialNode
 
         var target: String = ""
-
-        init(value: String) do
-                assert value != ""
-
-                self.value = value
-        end
 
         fun set_target(target: String) do
                 assert target != ""
@@ -421,13 +448,7 @@ end
 # An XML CDATA representation
 class XMLCDATA
         super XMLSpecialNode
-
-        init(value: String) do
-                assert value != ""
-
-                self.value = value
-        end
-
+        
         redef fun format_xml(indent: Bool, depth: Int): String do
                 if not indent then depth = 0
 

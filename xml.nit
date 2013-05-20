@@ -35,7 +35,7 @@ end
 
 interface XPathable
 
-        fun xpath_query(query: String): Array[XMLElement] is abstract
+        fun xpath_query(query: XPathQuery): XPathResult is abstract
  
 end
 
@@ -44,13 +44,93 @@ class XPathResult
         super Array[XMLElement]
         super XPathable
 
-        redef fun xpath_query(query: String): XPathResult do
+        redef fun xpath_query(query: XPathQuery): XPathResult do
                 var results = new XPathResult
 
                 for e in self do results.add_all(e.xpath_query(query))
                 
                 return results
         end
+end
+
+class XPathQuery
+        var is_absolute: Bool = false
+        var is_recursive: Bool = false
+        var patterns: Array[XPathPattern] = new Array[XPathPattern]
+
+        init(query: String) do
+                if query[0] == '/' then
+                        self.is_absolute = true
+                        if query.length > 1 and query[1] == '/' then self.is_recursive = true
+                end
+
+                var slices = query.split_with('/')
+
+                for pattern in slices do
+                        if not pattern.is_empty then
+                                var bracket_start = pattern.index_of('[')
+                                var bracket_end = pattern.index_of(']')
+
+                                if bracket_start >= 0 and bracket_start < bracket_end then
+                                        # (foo)?[0-9|(@attr=val)]
+
+                                        # Get the "foo" part (node name or empty)
+                                        var pattern_val: nullable String = ""
+                                        for i in [0..bracket_start[ do pattern_val += pattern[i].to_s
+                                        if pattern_val.is_empty then pattern_val = null
+                                        
+                                        if pattern[bracket_start + 1] == '@' then
+                                                # (foo)?[@attr=val]
+                                                var equal_pos = pattern.index_of('=')
+                                                        
+                                                if equal_pos > bracket_start and equal_pos < bracket_end then
+                                                        # Get the "attr" part
+                                                        var attribute_name = ""
+                                                        for i in [bracket_start + 2..equal_pos[ do attribute_name += pattern[i].to_s
+
+                                                        # Avoid opening and closing quotes in attribute value, if any
+                                                        if pattern[equal_pos + 1] == pattern[bracket_end - 1] and (pattern[equal_pos + 1] == '\'' or pattern[bracket_start + 1] == '"') then
+                                                                equal_pos += 1
+                                                                bracket_end -= 1
+                                                        end
+                                                        # Get the "val" part
+                                                        var attribute_val = ""
+                                                        for i in [equal_pos + 1..bracket_end[ do attribute_val += pattern[i].to_s
+                                                        
+                                                        self.patterns.add(new XPathPattern(pattern_val, new XMLAttribute(attribute_name, attribute_val), null))
+                                                end
+                                        else
+                                                var pattern_index = ""
+
+                                                for i in [bracket_start + 1..bracket_end[ do pattern_index += pattern[i].to_s
+
+                                                if pattern_index.is_numeric and not pattern_index.has('.') and not pattern_index.has(',') then
+                                                        # (foo)?[0-9+]
+                                                        self.patterns.add(new XPathPattern(pattern_val, null, pattern_index.to_i))
+                                                end
+                                        end
+                                else
+                                        self.patterns.add(new XPathPattern(pattern, null, null))
+                                end
+                        end
+                end
+        end
+
+        fun is_root: Bool do
+                if self.is_absolute and not self.is_recursive and patterns.is_empty then return true
+                return false
+        end
+end
+
+# Represents a single-level XPath query, such as foo, foo[@attr='value'] or foo[1]
+class XPathPattern
+        var value: nullable String
+        var attribute: nullable XMLAttribute
+        var index: nullable Int
+
+        fun has_value: Bool do return value != null
+        fun has_attribute: Bool do return attribute != null
+        fun has_index: Bool do return index != null
 end
 
 # An XML document representation
@@ -79,12 +159,10 @@ class XMLDocument
 		        out.close
 	    end
 
-        redef fun xpath_query(query: String): XPathResult do
-                assert not query.is_empty
-
+        redef fun xpath_query(query: XPathQuery): XPathResult do
                 var results = new XPathResult
-
-                if query[0] != '/' then
+                
+                if not query.is_absolute then
                         print("Cannot execute relative XPath query on a document, try on a node instead.")
                         return results
                 end
@@ -93,39 +171,28 @@ class XMLDocument
 
                 var root = self.root
 
-                if query == "/" and root != null then
+                if query.is_root and root != null then
                         results.add(root)
                 else
-                        var slices = query.split_with('/')
-
                         # //foo
-                        if slices.length == 3 and slices[1].is_empty then
-                                results.add_all(self.root.search_all_by_pattern(slices[2], true))
-                        else
+                        if query.is_recursive then
+                                results.add_all(root.search_children(query.patterns.first, true))
+                        else if root != null and root.match(query.patterns.first) then
                                 # /foo
-                                if slices.length == 2 and self.root.value == slices[1] and root != null then
+                                if query.is_absolute and query.patterns.length == 1 then
                                         results.add(root)
                                 # /foo(/bar)+
-                                else if slices.length > 2 then
-                                        slices.remove_at(0)
-                                        
-                                        if slices[0] == self.root.value then
-                                                slices.remove_at(0)
-
-                                                results.add_all(self.root.nested_search_all_by_pattern(slices))
-                                        end
+                                else if query.patterns.length > 1 then
+                                        var patterns = new Array[XPathPattern]
+                                        patterns.add_all(query.patterns)
+                                        patterns.remove_at(0)
+                                        results.add_all(root.sequential_query(patterns))
                                 end
                         end
                 end
 
                 return results
         end
-
-        # Look for all elements matching this pattern (name, optionally index and parameters) in the document, recursively or not
-        private fun search_all_by_pattern(pattern: String, recursive: Bool): Array[XMLNode] do
-                return self.root.search_all_by_pattern(pattern, recursive)
-        end
-
 end
 
 # An XML attribute representation
@@ -236,6 +303,8 @@ class XMLElement
                 return false
         end
 
+        fun match(pattern: XPathPattern): Bool do return self.value == pattern.value
+
         redef fun format_xml(indent: Bool, depth: Int): String do
                 if not indent then depth = 0
 
@@ -265,71 +334,27 @@ class XMLElement
         end
 
         # Look for all children elements matching this pattern (name, optionally index and parameters), recursively or not
-        private fun search_all_by_pattern(pattern: String, recursive: Bool): Array[XMLElement] do
+        private fun search_children(pattern: XPathPattern, recursive: Bool): Array[XMLElement] do
                 var results = new Array[XMLElement]
                 var index = 1
 
                 for c in children do
                         if c isa XMLElement then
-                                if c.value == pattern then
-                                        results.add(c)
-                                else 
-                                        var bracket_start = pattern.index_of('[')
-                                        var bracket_end = pattern.index_of(']')
-
-                                        if bracket_start >= 0 and bracket_start < bracket_end then
-                                                # (foo)?[0-9|(@attr=val)]
-
-                                                # Get the "foo" part (node name or empty)
-                                                var pattern_val = ""
-                                                for i in [0..bracket_start[ do pattern_val += pattern[i].to_s
-                                                
-                                                if pattern[bracket_start + 1] == '@' then
-                                                        # (foo)?[@attr=val]
-                                                        var equal_pos = pattern.index_of('=')
-                                                                
-                                                        if equal_pos > bracket_start and equal_pos < bracket_end then
-                                                                # Get the "attr" part
-                                                                var attribute_name = ""
-                                                                for i in [bracket_start + 2..equal_pos[ do attribute_name += pattern[i].to_s
-
-                                                                # Avoid opening and closing quotes in attribute value, if any
-                                                                if pattern[equal_pos + 1] == pattern[bracket_end - 1] and (pattern[equal_pos + 1] == '\'' or pattern[bracket_start + 1] == '"') then
-                                                                        equal_pos += 1
-                                                                        bracket_end -= 1
-                                                                end
-                                                                # Get the "val" part
-                                                                var attribute_val = ""
-                                                                for i in [equal_pos + 1..bracket_end[ do attribute_val += pattern[i].to_s
-
-                                                                var match = true
-
-                                                                # Check node name if "foo" isn't empty
-                                                                if not pattern_val.is_empty and c.value != pattern_val then
-                                                                        match = false
-                                                                else if not c.has_attribute_with_value(new XMLAttribute(attribute_name, attribute_val)) then 
-                                                                        match = false
-                                                                end
-
-                                                                if match then results.add(c)
-                                                        end
-                                                else
-                                                        var pattern_index = ""
-
-                                                        for i in [bracket_start + 1..bracket_end[ do pattern_index += pattern[i].to_s
-
-                                                        if pattern_index.is_numeric and not pattern_index.has('.') and not pattern_index.has(',') then
-                                                                # (foo)?[0-9+]
-                                                                if pattern_val.is_empty or pattern_val == c.value then
-                                                                        if index == pattern_index.to_i then results.add(c)
-                                                                        index += 1
-                                                                end
-                                                        end
+                                if c.match(pattern) then
+                                        if not pattern.has_index and not pattern.has_attribute then
+                                                results.add(c)
+                                        else if pattern.has_index then
+                                                if index == pattern.index then results.add(c)
+                                                index += 1
+                                        else if pattern.has_attribute then
+                                                var attribute = pattern.attribute
+                                                if attribute != null then
+                                                        if c.has_attribute_with_value(attribute) then results.add(c)
                                                 end
                                         end
                                 end
                                 
-                                if recursive and c.has_children then results.add_all(c.search_all_by_pattern(pattern, recursive))
+                                if recursive and c.has_children then results.add_all(c.search_children(pattern, recursive))
                         end
                 end
 
@@ -337,7 +362,7 @@ class XMLElement
         end
        
         # Look for an ordered succession of children
-        private fun nested_search_all_by_pattern(patterns: Array[String]): Array[XMLElement] do
+        private fun sequential_query(patterns: Array[XPathPattern]): Array[XMLElement] do
                 var results = new Array[XMLElement]
                 
                 var parent_results: Array[XMLElement] = [self]
@@ -345,7 +370,7 @@ class XMLElement
                 for depth in [0..patterns.length[ do
                         results.clear
                         
-                        for node in parent_results do results.add_all(node.search_all_by_pattern(patterns[depth], false))
+                        for node in parent_results do results.add_all(node.search_children(patterns[depth], false))
 
                         parent_results.clear
                         parent_results.add_all(results)
@@ -354,24 +379,20 @@ class XMLElement
                 return results
         end
 
-        redef fun xpath_query(query: String): XPathResult do
-                assert not query.is_empty
-
+        redef fun xpath_query(query: XPathQuery): XPathResult do
                 var results = new XPathResult
 
-                if query[0] == '/' then
+                if query.is_absolute then
                         print("Cannot execute absolute XPath query on an element, try on the document instead.")
                         return results
                 end
-
-                var slices = query.split_with('/')
-
+                
                 # foo
-                if slices.length == 1 then
-                        results.add_all(self.search_all_by_pattern(slices[0], false))
+                if query.patterns.length == 1 then
+                        results.add_all(self.search_children(query.patterns.first, false))
                 # foo(/bar)+
-                else if slices.length > 1 then
-                        results.add_all(self.nested_search_all_by_pattern(slices))
+                else
+                        results.add_all(self.sequential_query(query.patterns))
                 end
 
                 return results

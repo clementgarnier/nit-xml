@@ -23,54 +23,54 @@ print document.to_xml(true)
 document.save("document.xml", false)
 
 printn("document.xpath_query(\"/\") => ")
-for n in document.xpath_query("/") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/")) do printn(n.to_xml(false))
 print("")
 
 printn("document.xpath_query(\"/mesh\") => ")
-for n in document.xpath_query("/mesh") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"/mesh/node\") => ")
-for n in document.xpath_query("/mesh/node") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh/node")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"/mesh/node[1]\") => ")
-for n in document.xpath_query("/mesh/node[1]") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh/node[1]")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"/mesh/node[2]\") => ")
-for n in document.xpath_query("/mesh/node[2]") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh/node[2]")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"/mesh/node[@attr1='value1']\") => ")
-for n in document.xpath_query("/mesh/node[@attr1='value1']") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh/node[@attr1='value1']")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"/mesh/node[@attr1='value2']\") => ")
-for n in document.xpath_query("/mesh/node[@attr1='value2']") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh/node[@attr1='value2']")) do printn(n.to_xml(false))
 print("\n")
 
 
 printn("document.xpath_query(\"/mesh/node/innernode\") => ")
-for n in document.xpath_query("/mesh/node/innernode") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("/mesh/node/innernode")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"//node\") => ")
-for n in document.xpath_query("//node") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("//node")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.xpath_query(\"//innernode\") => ")
-for n in document.xpath_query("//innernode") do printn(n.to_xml(false))
+for n in document.xpath_query(new XPathQuery("//innernode")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.root.xpath_query(\"node\") => ")
-for n in document.root.xpath_query("node") do printn(n.to_xml(false))
+for n in document.root.xpath_query(new XPathQuery("node")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.root.xpath_query(\"node/innernode\") => ")
-for n in document.root.xpath_query("node/innernode") do printn(n.to_xml(false))
+for n in document.root.xpath_query(new XPathQuery("node/innernode")) do printn(n.to_xml(false))
 print("\n")
 
 printn("document.root.xpath_query(\"node\").xpath_query(\"innernode\") => ")
-for n in document.root.xpath_query("node").xpath_query("innernode") do printn(n.to_xml(false))
+for n in document.root.xpath_query(new XPathQuery("node")).xpath_query(new XPathQuery("innernode")) do printn(n.to_xml(false))
 print("\n")

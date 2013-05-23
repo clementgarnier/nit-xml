@@ -25,8 +25,7 @@ interface XMLisable
         private fun indent_xml(depth: Int, xml_string: String): String do
                 assert depth >= 0
 
-                var xml: String = ""
-                for i in [0..depth - 1] do xml += "\t"
+                var xml = "\t" * depth
                 xml += xml_string
                 return xml
         end

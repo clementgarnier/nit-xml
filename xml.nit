@@ -34,11 +34,13 @@ end
 
 interface XPathable
 
+        # Execute an XPath query
+        # xpathable.xpath_query(new XPathQuery("/foo/bar"))
         fun xpath_query(query: XPathQuery): XPathResult is abstract
  
 end
 
-# An XPath query result, also query-able
+# An XPath query result, represented as an XPathable Array of XMLElement
 class XPathResult
         super Array[XMLElement]
         super XPathable
@@ -52,6 +54,7 @@ class XPathResult
         end
 end
 
+# A representation of an XPath query
 class XPathQuery
         var is_absolute: Bool = false
         var is_recursive: Bool = false
@@ -152,6 +155,7 @@ class XMLDocument
                 return xml
         end
 
+        # Save document to a file
         fun save(file: String, indent: Bool) do
 		        var out = new OFStream.open(file)
 		        out.write(self.to_xml(indent))
